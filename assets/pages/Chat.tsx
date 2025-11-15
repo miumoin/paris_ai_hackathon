@@ -30,6 +30,11 @@ interface dataState {
     isMessageValid: boolean;
 }
 
+interface VoiceResponse {
+  text: string;
+  audio?: string; // optional base64 TTS
+}
+
 const Chat: React.FC = () => {
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const { slug } = useParams<{ slug?: string }>();
@@ -52,6 +57,12 @@ const Chat: React.FC = () => {
     const messagesRef = useRef(data.messages);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const [recording, setRecording] = useState(false);
+    const [recognizedText, setRecognizedText] = useState<string>('');
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+
 
     useEffect(() => {
         prepareKnowledge( data.slug );
@@ -293,6 +304,53 @@ const Chat: React.FC = () => {
         }
     };
 
+    const startRecording = async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorderRef.current = new MediaRecorder(stream);
+        audioChunksRef.current = [];
+
+        mediaRecorderRef.current.ondataavailable = (event: BlobEvent) => {
+        audioChunksRef.current.push(event.data);
+        };
+
+        mediaRecorderRef.current.start();
+        setRecording(true);
+    };
+
+    const stopRecording = async () => {
+        if (!mediaRecorderRef.current) return;
+
+        mediaRecorderRef.current.stop();
+        setRecording(false);
+
+        mediaRecorderRef.current.onstop = async () => {
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+            audioChunksRef.current = [];
+
+            const reader = new FileReader();
+            reader.readAsDataURL(audioBlob);
+            reader.onloadend = async () => {
+                const base64Audio = (reader.result as string).split(',')[1];
+
+                const response = await fetch(`${App.api_base}/chat/${data.slug}/voice`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ audio: base64Audio })
+                });
+
+                const result: VoiceResponse = await response.json();
+                setData((prevData) => ({ ...prevData, message: result.text, isMessageValid: true }));
+
+                if (result.audio) {
+                    const audioBlob = new Blob([Uint8Array.from(atob(result.audio), c => c.charCodeAt(0))], { type: 'audio/wav' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const audio = new Audio(audioUrl);
+                    audio.play();
+                }
+            };
+        };
+    };
+
     return (
         <>
             <header className="container mt-4 border-bottom">
@@ -382,11 +440,21 @@ const Chat: React.FC = () => {
                                                             }
                                                         }} 
                                                     />
-                                                    <button className="btn btn-primary btn-sm m-1" onClick={(e) => ( document.getElementById('sendFile')?.click() )} disabled={data.isFileUploading}>
+                                                    <button className="btn btn-primary btn-sm m-1 d-none" onClick={(e) => ( document.getElementById('sendFile')?.click() )} disabled={data.isFileUploading}>
                                                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="icon icon-tabler icons-tabler-outline icon-tabler-send"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 7l-6.5 6.5a1.5 1.5 0 0 0 3 3l6.5 -6.5a3 3 0 0 0 -6 -6l-6.5 6.5a4.5 4.5 0 0 0 9 9l6.5 -6.5" /></svg>
                                                     </button>
                                                 </>
                                             )}
+                                            <button
+                                                className="btn btn-primary btn-sm m-1"
+                                                onClick={recording ? stopRecording : startRecording}
+                                                >
+                                                {recording ? (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="icon icon-tabler icons-tabler-filled icon-tabler-microphone"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M19 9a1 1 0 0 1 1 1a8 8 0 0 1 -6.999 7.938l-.001 2.062h3a1 1 0 0 1 0 2h-8a1 1 0 0 1 0 -2h3v-2.062a8 8 0 0 1 -7 -7.938a1 1 0 1 1 2 0a6 6 0 0 0 12 0a1 1 0 0 1 1 -1m-7 -8a4 4 0 0 1 4 4v5a4 4 0 1 1 -8 0v-5a4 4 0 0 1 4 -4" /></svg>
+                                                ) : (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="icon icon-tabler icons-tabler-outline icon-tabler-microphone"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 2m0 3a3 3 0 0 1 3 -3h0a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3h0a3 3 0 0 1 -3 -3z" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M8 21l8 0" /><path d="M12 17l0 4" /></svg>
+                                                )}
+                                                </button>
                                             <button className="btn btn-primary btn-sm m-1" disabled={!data.isMessageValid || !data.isKnowledgeReady}>
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="icon icon-tabler icons-tabler-outline icon-tabler-send"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 14l11 -11" /><path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" /></svg>
                                             </button>

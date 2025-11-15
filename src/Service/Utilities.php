@@ -7,6 +7,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Doctrine\ORM\EntityManagerInterface;
 use App\Service\DatabaseManager;
 use App\Service\SerpApi;
+use App\Service\QdrantManager;
 use Doctrine\Common\Collections\ArrayCollection;
 use Stripe\Stripe;
 use Stripe\StripeClient;
@@ -16,6 +17,8 @@ use Stripe\PaymentIntent;
 use Aws\S3\S3Client;
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 use GuzzleHttp\Promise\Utils;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\RequestException;
 use DateTime;
 use \Mailjet\Resources;
 use \Smalot\PdfParser\Parser;
@@ -411,28 +414,19 @@ The Typewriting Team';
         }
 
         $textChunks = $this->splitText($big_chunk, 256);
-        $embeddingDatabase = $this->prepareEmbeddingsBatch( $textChunks );
+        $chunks = $this->prepareEmbeddingsBatch( $textChunks );
+        
+        $qdrant = new QdrantManager(
+            qdrantUrl: $_ENV['QDRANT_CLUSTER_URL'],
+            qdrantApiKey: $_ENV['QDRANT_API_KEY'],
+            collection: 'dataset-' . $block['id']
+        );
 
-        $vector_filesource = '/tmp/dataset-' . $block['id'] . '.json';
-        file_put_contents( $vector_filesource, json_encode($embeddingDatabase) );
-      
-        //save in the s3
-        $s3 = new S3Client([
-            'version' => 'latest',
-            'region'  => $_ENV['AWS_REGION'],
-            'credentials' => [
-                'key'    => $_ENV['AWS_ACCESS_KEY'],
-                'secret' => $_ENV['AWS_SECRET_KEY'],
-            ],
-        ]);
+        // Create collection for 768-dim embeddings
+        $qdrant->createCollection(1536, 'Cosine');
 
-        $result = $s3->putObject([
-            'Bucket' => $_ENV['AWS_S3_BUCKET'],
-            'Key'    => 'embeddings/dataset-' . $block['id'] . '.json',
-            'SourceFile' => $vector_filesource
-        ]);
-
-        unlink( $vector_filesource );
+        // Upsert multiple chunks
+        $result = $qdrant->upsertChunks($chunks);
         return true;
     }
 
@@ -462,16 +456,13 @@ The Typewriting Team';
             }
         }
 
+        $qdrant = new QdrantManager(
+            qdrantUrl: $_ENV['QDRANT_CLUSTER_URL'],
+            qdrantApiKey: $_ENV['QDRANT_API_KEY'],
+            collection: 'dataset-' . $id
+        );
 
-        //delete embedding from s3
-        try {
-            $result = $s3->deleteObject([
-                'Bucket' => $_ENV['AWS_S3_BUCKET'],
-                'Key'    => 'embeddings/dataset-' . $content['id'] . '.json',
-            ]);
-        } catch (Aws\Exception\AwsException $e) {
-            echo "Error: " . $e->getMessage();
-        }
+        $qdrant->deleteCollection();
 
         $databaseManager->deleteBlock($id);
         return true;
@@ -775,15 +766,13 @@ The Typewriting Team';
             }
         }
 
-        //delete embedding from s3
-        try {
-            $result = $s3->deleteObject([
-                'Bucket' => $_ENV['AWS_S3_BUCKET'],
-                'Key'    => 'embeddings/dataset-' . $content['id'] . '.json',
-            ]);
-        } catch (Aws\Exception\AwsException $e) {
-            echo "Error: " . $e->getMessage();
-        }
+        $qdrant = new QdrantManager(
+            qdrantUrl: $_ENV['QDRANT_CLUSTER_URL'],
+            qdrantApiKey: $_ENV['QDRANT_API_KEY'],
+            collection: 'dataset-' . $content['id']
+        );
+
+        $qdrant->deleteCollection();
 
         $databaseManager->deleteBlock($id);
         return true;
@@ -938,7 +927,7 @@ The Typewriting Team';
 
     public function prepareChatKnowledge( string $slug, DatabaseManager $databaseManager ): bool|null
     {
-        if( file_exists('/tmp/dataset-' . $slug . '.json')) {
+        if( file_exists('/tmp/_dataset-' . $slug . '.json')) {
             //do nothing, dataset already exists
         } else {
             $embeddingDatabase = [];
@@ -966,18 +955,17 @@ The Typewriting Team';
                     ->getResult();
 
                 if( count( $knowledges ) > 0 ) {
-                    $s3 = new S3Client([
-                    'version' => 'latest',
-                    'region'  => $_ENV['AWS_REGION'],
-                    'credentials' => [
-                        'key'    => $_ENV['AWS_ACCESS_KEY'],
-                        'secret' => $_ENV['AWS_SECRET_KEY'],
-                    ],
-                    ]);
+                    
 
                     for( $i = 0; $i < count( $knowledges ); $i++ ) {
-                    $object = $s3->getObject(array( 'Bucket' => $_ENV['AWS_S3_BUCKET'], 'Key' => 'embeddings/dataset-' . $knowledges[$i]['id'] . '.json' ));
-                    $embeddingDatabase = array_merge( $embeddingDatabase, json_decode( $object['Body'], true ) );
+                        $qdrant = new QdrantManager(
+                            qdrantUrl: $_ENV['QDRANT_CLUSTER_URL'],
+                            qdrantApiKey: $_ENV['QDRANT_API_KEY'],
+                            collection: 'dataset-' . $knowledges[$i]['id']
+                        );
+
+                        $object = $qdrant->getAllPoints(1000);
+                        $embeddingDatabase = array_merge( $embeddingDatabase, $object );
                     }
                 }
             }
@@ -1785,5 +1773,37 @@ Answer is:';
             ->getQuery()
             ->getOneOrNullResult();
         return $subscription['parent_id'] ?? null;
+    }
+
+    public function convertVoiceMessage( $audioBase64 ): string|null
+    {
+        /*
+        $audioBinary = base64_decode($audioBase64);
+
+        $apiKey = $_ENV['ELEVEN_LABS_API_KEY'];
+        $client = new Client();
+
+        // Speech-to-Text
+        $response = $client->post('https://api.elevenlabs.io/v1/speech-to-text', [
+            'headers' => [
+                'xi-api-key' => $_ENV['ELEVEN_LABS_API_KEY']
+            ],
+            'multipart' => [
+                [
+                    'name'     => 'file',
+                    'contents' => $audioBinary,
+                    'filename' => 'audio.wav'
+                ],
+                [
+                    'name'     => 'model_id',
+                    'contents' => 'scribe_v1'  // required field
+                ]
+            ]
+        ]);
+        $sttData = json_decode($response->getBody()->getContents(), true);
+        $text = $sttData['text'] ?? '';
+        */
+        $text = 'Transcription feature is not available currently.';
+        return $text;
     }
 }

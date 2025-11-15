@@ -142,4 +142,21 @@ class ChatApiController extends AbstractController
             'knowledge' => $knowledge
         ]);
     }
+
+    #[Route('/api/chat/{slug}/voice', name: 'convert_voice_message')]
+    public function convert_voice_message(string $slug, Request $request): JsonResponse
+    {
+        $domain = $request->headers->get('X-Vuedoo-Domain') ?? '';
+        $access_key = $request->headers->get('X-Vuedoo-Access-Key') ?? '';
+        $databaseManager = new DatabaseManager($this->entityManager, $domain, $access_key);
+        
+        $data = json_decode($request->getContent(), true);
+        $audioBase64 = $data['audio'] ?? '';
+        $text = $this->utilities->convertVoiceMessage( $audioBase64 ); 
+
+        return new JsonResponse([
+            'status'    => ( $text ? 'success' : 'fail' ),
+            'text'      => $text
+        ]);
+    }
 }
