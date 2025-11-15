@@ -1,0 +1,63 @@
+.avatar {
+  --bs-avatar-width: 32px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 14px;
+  border-radius: 50%;
+  -o-object-fit: cover;
+  object-fit: cover;
+}
+
+[data-bs-theme="dark"] {
+  p, h1, h2, h3, h4, h5, h6, a, label, input, textarea, button {
+    color: #fff;
+  }
+
+  .text-body-dim p, 
+  .text-body-dim h1, 
+  .text-body-dim h2, 
+  .text-body-dim h3, 
+  .text-body-dim h4, 
+  .text-body-dim h5, 
+  .text-body-dim h6, 
+  .text-body-dim a, 
+  .text-body-dim label, 
+  .text-body-dim input, 
+  .text-body-dim textarea, 
+  .text-body-dim button {
+    color: rgba(255, 255, 255, 0.60) !important;
+  }
+}
+
+.workspace .bg-c-blue {
+    background: linear-gradient(45deg,#000,#182533);
+}
+
+.workspace .card {
+    border-radius: 5px;
+    -webkit-box-shadow: 0 1px 2.94px 0.06px rgba(4,26,55,0.16);
+    box-shadow: 0 1px 2.94px 0.06px rgba(4,26,55,0.16);
+    border: none;
+    margin-bottom: 30px;
+    -webkit-transition: all 0.3s ease-in-out;
+    transition: all 0.3s ease-in-out;
+}
+
+.workspace .card .card-block {
+    padding: 25px;
+}
+
+.workspace .order-card i {
+    font-size: 26px;
+}
+
+.workspace .f-left {
+    float: left;
+}
+
+.workspace .f-right {
+    float: right;
+}

@@ -1,0 +1,11 @@
+# config/packages/stripe.yaml
+parameters:
+    stripe.publishable_key: '%env(STRIPE_PUBLISHABLE_KEY)%'
+    stripe.secret_key: '%env(STRIPE_SECRET_KEY)%'
+    stripe.price_pro: '%env(STRIPE_PRICE_PRO)%'
+    stripe.payment_link: '%env(STRIPE_PAYMENT_LINK)%'
+    google.client_id: '%env(GOOGLE_CLIENT_ID)%'
+    aws.s3_bucket: '%env(AWS_S3_BUCKET)%'
+    aws.access_key: '%env(AWS_ACCESS_KEY)%'
+    aws.secret_key: '%env(AWS_SECRET_KEY)%'
+    aws.region: '%env(AWS_REGION)%'

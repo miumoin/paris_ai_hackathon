@@ -1,0 +1,42 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Enterprise knowldege manager
+
+Resources:
+  TWKnowledgeManager:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TWKnowledgeManager
+      Handler: public/index.php
+      Runtime: provided.al2
+      CodeUri: ./
+      Timeout: 120
+      MemorySize: 512
+      Environment:
+        Variables:
+          APP_ENV: prod
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-00333a1095413e71a
+          - sg-0b56322eb0b059ba9
+        SubnetIds:
+          - subnet-0329b413410ee15e8
+        Ipv6AllowedForDualStack: false
+      Layers:
+        - arn:aws:lambda:us-west-2:534081306603:layer:php-82-fpm:86
+        - arn:aws:lambda:us-west-2:403367587399:layer:gd-php-82:15
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            Path: /
+            Method: ANY
+        ProxyPath:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}  # Catch-all route
+            Method: ANY
+Outputs:
+  WebApiUrl:
+    Description: API Gateway URL
+    Value: !Sub "https://${TWKnowledgeManager}.execute-api.${AWS::Region}.amazonaws.com/"

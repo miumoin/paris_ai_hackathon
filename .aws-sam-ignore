@@ -1,0 +1,6 @@
+public/build/
+assets/
+node_modules/
+tests/
+.git/
+.aws-sam/
