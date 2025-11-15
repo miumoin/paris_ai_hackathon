@@ -3,7 +3,6 @@
 
 
 ## Demo Video
-
 <div align="center">
     <video controls width="800" poster="assets/demo-poster.png">
         <div align="center">
