@@ -4,9 +4,10 @@
 
 ## Demo Video
 
-<!-- Alternatively, embed a YouTube demo (replace VIDEO_ID) -->
 <p align="center">
-    <iframe width="800" height="450" src="https://www.youtube.com/embed/XQSIWdA6uDs" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    <a href="https://youtu.be/XQSIWdA6uDs" target="_blank" rel="noopener">
+        <img src="https://img.youtube.com/vi/XQSIWdA6uDs/hqdefault.jpg" alt="Demo Video" width="800" />
+    </a>
 </p>
 
 
@@ -28,5 +29,5 @@ mysql -u [user] -p [database] < dump.sql
 ## Build & Run
 ```bash
 npm run build
-symfony start
+symfony server:start
 ```
