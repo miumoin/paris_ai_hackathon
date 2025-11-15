@@ -1777,7 +1777,7 @@ Answer is:';
 
     public function convertVoiceMessage( $audioBase64 ): string|null
     {
-        /*
+        
         $audioBinary = base64_decode($audioBase64);
 
         $apiKey = $_ENV['ELEVEN_LABS_API_KEY'];
@@ -1801,9 +1801,8 @@ Answer is:';
             ]
         ]);
         $sttData = json_decode($response->getBody()->getContents(), true);
-        $text = $sttData['text'] ?? '';
-        */
-        $text = 'Transcription feature is not available currently.';
+        $text = $sttData['text'] ?? 'Transcription feature is not available currently.';
+        
         return $text;
     }
 }
